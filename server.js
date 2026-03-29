@@ -6,13 +6,20 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const app = express();
+
+// Enable CORS so your frontend can call this backend
 app.use(cors());
 app.use(express.json());
 
+// AI endpoint
 app.post("/ai", async (req, res) => {
   try {
     const { resume, job } = req.body;
 
+    // Log incoming request
+    console.log("Received request:", { resume, job });
+
+    // Call OpenAI API
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -20,11 +27,11 @@ app.post("/ai", async (req, res) => {
         "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: "gpt-3.5-turbo", // safer than gpt-4o-mini
+        model: "gpt-3.5-turbo", // Safe and widely available
         messages: [
           {
             role: "system",
-            content: "You are a professional resume coach giving concise suggestions to improve resumes."
+            content: "You are a professional resume coach giving concise, actionable suggestions."
           },
           {
             role: "user",
@@ -35,15 +42,26 @@ app.post("/ai", async (req, res) => {
       })
     });
 
-    const data = await response.json();
-    const aiMessage = data.choices?.[0]?.message?.content || "No suggestions returned";
+    // Check for OpenAI API errors
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error("OpenAI API error:", response.status, errText);
+      return res.status(500).json({ error: "OpenAI API error" });
+    }
 
+    const data = await response.json();
+    console.log("Raw OpenAI response:", JSON.stringify(data, null, 2));
+
+    // Normalize response for frontend
+    const aiMessage = data.choices?.[0]?.message?.content || "No suggestions returned";
     res.json({ choices: [{ message: { content: aiMessage } }] });
+
   } catch (error) {
-    console.error(error);
+    console.error("Backend error:", error);
     res.status(500).json({ error: "AI backend error" });
   }
 });
 
+// Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`AI backend running on port ${PORT}`));
